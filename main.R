@@ -114,12 +114,12 @@ for (s in 1:S) {
   # ERROR ANALYSIS #
   ##################
   
-  computed_error_MAPE  <- compute_error(intensities = intensities, results =  , error_type = 'MAPE' )
+  computed_error_MAPE  <- compute_error(intensities = intensities, results = processed_result$result_r_mean, error_type = 'MAPE' )
   computed_error_MAAPE <- compute_error(intensities = intensities, results = processed_result$result_r_mean, error_type = 'MAAPE')
   
   # plot_error(computed_error = computed_error_MAPE , s = s, error_type = 'MAPE' ) # PLOT
   plot_error(computed_error = computed_error_MAAPE, s = s, error_type = 'MAAPE') # PLOT
   
-  saveRDS(object = computed_error_MAPE, file = paste('output/', sprintf('%02d', s), '/rds/computed_error_MAPE.rds', sep = ''))
+  saveRDS(object = computed_error_MAPE, file = paste('output/', sprintf('%02d', s), '/rds/computed_error_MAPE.rds',  sep = ''))
   saveRDS(object = computed_error_MAPE, file = paste('output/', sprintf('%02d', s), '/rds/computed_error_MAAPE.rds', sep = ''))
 }
