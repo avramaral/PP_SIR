@@ -8,7 +8,7 @@ generate_intensity <- function (area_pop, SIR, nu, scale, sig_2, mu, sd, a, mode
   ref <- raster(nrow = n_row_count, ncol = n_col_count)
   extent(ref) <- extent(area_pop)
   inner_cells <- ((n_row_count / nrow(area_pop)) * (n_col_count / ncol(area_pop)))
-  new_pop_val <- matrix(data = raster::extract(x = area_pop, y = rasterToPoints(ref)), nrow = n_row_count, ncol = n_col_count, byrow = TRUE) / n_inner_c
+  new_pop_val <- matrix(data = raster::extract(x = area_pop, y = rasterToPoints(ref)), nrow = n_row_count, ncol = n_col_count, byrow = TRUE) / inner_cells
   values(ref) <- as.vector(t(new_pop_val))
 
   pos <- which(!is.na(values(ref)))
