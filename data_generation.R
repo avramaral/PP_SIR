@@ -1,5 +1,5 @@
 generate_area <- function (region = 'Brazil', subregion = '3550308', x_center = 4589832.86, y_center = 7318721.75, x_size = 3000, y_size = 1000, nrow = 10, ncol = 30) {
-  
+
   area <- st_transform(x = read_municipality(code_muni = as.numeric(subregion), year = 2020), crs = CRS('EPSG:4326'))
   pop <- raster(x = paste('data/population/', tolower(region), '.tif', sep = ''))
   # Alternatively, download the 'brazil.tif' object from here: https://drive.google.com/file/d/1nMhIY-DH852qBZDdRnjhhzfT_q3O0fXF/view?usp=sharing
@@ -10,7 +10,7 @@ generate_area <- function (region = 'Brazil', subregion = '3550308', x_center = 
   
   rect_around_point <- function(x, x_size, y_size){
     bbox <- st_bbox(x)
-    bbox <- bbox + c(x_size / 2, y_size / 2, -x_size / 2, -y_size / 2)
+    bbox <- bbox + c(-x_size / 2, -y_size / 2, x_size / 2, y_size / 2)
     return(st_as_sf(st_as_sfc(bbox)))
   }
   
@@ -72,32 +72,25 @@ simulate_SIR <- function (start, Terminal, delta, N_population, I0, beta, gamma,
   data.frame(time = times, S = S, I = I, R = R)
 }
 
-generate_intensity <- function (area_pop, SIR) {
-  intensities <- list()
-  for (t in 1:nrow(SIR)) {
-    intensities[[t]] <- (area_pop / sum(values(area_pop), na.rm = TRUE)) * SIR$I[t] / prod(res(area_pop))
-  }
-  intensities
-}
-
-simulate_locations <- function (SIR, area_pop) {
+simulate_locations <- function (SIR, intensities) {
+  
   times <- SIR$time
   progressbar <- txtProgressBar(min = 1, max = length(times), initial = 1) 
   
   infectious_locations <- list()
   for (t in times) {
     if (t == 1) {
-      n_points <- rpoint(n = SIR$I[t], f = as.im(area_pop))
+      n_points <- rpoint(n = SIR$I[t], f = as.im(intensities[[t]] + 1e-6))
       marks(n_points) <- t
       infectious_locations[[t]] <- n_points
     } else {
       rec_diff <- SIR$R[t] - SIR$R[(t - 1)]
-      inf_diff <- SIR$I[t] - SIR$I[(t - 1)] + rec_diff
+      if ((SIR$I[t] != 0) | (SIR$I[(t - 1)] != 0)) { inf_diff <- SIR$I[t] - SIR$I[(t - 1)] + rec_diff } else { inf_diff <- 0 } # Deal with cases when no infectious occur, but S and R change
       if (inf_diff < 0) {
         rec_diff <- rec_diff + (-1 * inf_diff)
         inf_diff <- 0
       }
-      n_points <- rpoint(n = inf_diff, f = as.im(area_pop))
+      n_points <- rpoint(n = inf_diff, f = as.im(intensities[[t]] + 1e-6))
       marks(n_points) <- t
       
       if (rec_diff == 0) { 

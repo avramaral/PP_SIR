@@ -71,7 +71,8 @@ fit_spatioTemporal <- function (area_pop, count_cells, Y_hat, N_restricted, n_ro
     mult_factor <- ((n_row_count / nrow(area_pop)) * (n_col_count / ncol(area_pop)))
     m <- matrix(data = raster::extract(x = area_pop, y = rasterToPoints(r)), nrow = n_row_count, ncol = n_col_count, byrow = TRUE) / mult_factor
     v <- na.omit(as.vector(m))
-    rep(v, N_tm)
+    v <- rep(v, N_tm)
+    v / sum(v, na.rm = TRUE)
   }
   
   id_sp <- 1:nrow(count_cells[[1]]); N_sp <- length(id_sp)
@@ -84,7 +85,7 @@ fit_spatioTemporal <- function (area_pop, count_cells, Y_hat, N_restricted, n_ro
                           id_tm = rep(id_tm, each = N_sp),
                           counts = convert_counts(ts = ts, area_pop = area_pop, count_cells = count_cells, N_restricted = N_restricted, n_row_count = n_row_count, n_col_count = n_col_count),
                           infect = rep(apply(Y_hat, c(2, 3), mean)[, 2], each = N_sp),
-                          pop = convert_pop(area_pop = area_pop, N_tm = N_tm, n_row_count = n_row_count, n_col_count = n_col_count))
+                          lambda_0 = convert_pop(area_pop = area_pop, N_tm = N_tm, n_row_count = n_row_count, n_col_count = n_col_count) / cellarea)
 
   if (null_model) {
     if (!AR_include) {
@@ -94,9 +95,9 @@ fit_spatioTemporal <- function (area_pop, count_cells, Y_hat, N_restricted, n_ro
     }
   } else {
     if (!AR_include) {
-      formula <- counts ~ 0 + offset(log(infect)) + f(id,  model = 'iid')  + f(id_sp, model = 'matern2d', nrow = n_row_count, ncol = n_col_count, nu = 1)
+      formula <- counts ~ 0 + offset(log(infect * lambda_0)) + f(id,  model = 'iid')  + f(id_sp, model = 'matern2d', nrow = n_row_count, ncol = n_col_count, nu = 1)
     } else {
-      formula <- counts ~ 0 + offset(log(infect)) + f(id,  model = 'iid')  + f(id_sp, model = 'matern2d', nrow = n_row_count, ncol = n_col_count, nu = 1) + f(id_tm,  model = 'ar1') 
+      formula <- counts ~ 0 + offset(log(infect * lambda_0)) + f(id,  model = 'iid')  + f(id_sp, model = 'matern2d', nrow = n_row_count, ncol = n_col_count, nu = 1) + f(id_tm,  model = 'ar1') 
     }
   }
   

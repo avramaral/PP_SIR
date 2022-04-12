@@ -1,6 +1,7 @@
 source('libraries.R')
 source('utils.R')
 source('data_generation.R')
+source('intensities.R')
 source('SIR_estimation.R')
 source('spatioTemporal_estimation.R')
 source('error_analysis.R')
@@ -15,7 +16,14 @@ I0       <- 1
 SIR_generation <- 'NB'
 SIR_fitting    <- 'NB'
 
-mult_factor <- 1
+mult_factor <- 2
+
+nu    <- 1
+scale <- 0.05
+sig_2 <- 0.2
+mu    <- -1 * sig_2 / 2 
+sd    <- sqrt(0.01)
+a     <- 0.5
 
 S <- length(scenarios)
 for (s in 1:S) {
@@ -24,9 +32,10 @@ for (s in 1:S) {
   alpha      <- scenarios[[s]]$alpha
   beta       <- scenarios[[s]]$beta
   gamma      <- scenarios[[s]]$gamma
+  model      <- scenarios[[s]]$model_generation
   null_model <- scenarios[[s]]$null_model
   AR_include <- scenarios[[s]]$AR_include
- 
+  
   set.seed(123)
   
   ###################
@@ -41,10 +50,11 @@ for (s in 1:S) {
   SIR <- simulate_SIR(start = start, Terminal = Terminal, delta = delta, N_population = N_population, I0 = I0, beta = beta, gamma = gamma, method = SIR_generation, phi = (1 / inv_phi))
   plot_SIR(SIR, s = s) # PLOT
   
-  intensities <- generate_intensity(area_pop = area_pop, SIR = SIR)
+  int_process <- generate_intensity(area_pop = area_pop, SIR = SIR, nu = nu, scale = scale, sig_2 = sig_2, mu = mu, sd = sd, a = a, model = model)
+  intensities <- int_process$intensities
   
-  infect_locations <- simulate_locations(SIR = SIR, area_pop = area_pop) 
-  # plot_infect_locations(area_pop = area_pop, Terminal = Terminal, map = map, infect_locations = infect_locations) # PLOT
+  infect_locations <- simulate_locations(SIR = SIR, intensities = intensities) 
+  # plot_infect_locations(area_pop = area_pop, Terminal = Terminal, map = map, infect_locations = infect_locations, s = s) # PLOT
   
   saveRDS(object = area_pop, file = paste('output/', sprintf('%02d', s), '/rds/area_pop.rds', sep = ''))
   saveRDS(object = SIR, file = paste('output/', sprintf('%02d', s), '/rds/SIR.rds', sep = ''))
@@ -104,47 +114,12 @@ for (s in 1:S) {
   # ERROR ANALYSIS #
   ##################
   
-  computed_error_MAPE  <- compute_error(intensities = intensities, results = processed_result$result_r_mean, error_type = 'MAPE' )
+  computed_error_MAPE  <- compute_error(intensities = intensities, results =  , error_type = 'MAPE' )
   computed_error_MAAPE <- compute_error(intensities = intensities, results = processed_result$result_r_mean, error_type = 'MAAPE')
   
-  plot_error(computed_error = computed_error_MAPE , s = s, error_type = 'MAPE' ) # PLOT
+  # plot_error(computed_error = computed_error_MAPE , s = s, error_type = 'MAPE' ) # PLOT
   plot_error(computed_error = computed_error_MAAPE, s = s, error_type = 'MAAPE') # PLOT
   
-  saveRDS(object = computed_error, file = paste('output/', sprintf('%02d', s), '/rds/computed_error.rds', sep = ''))
+  saveRDS(object = computed_error_MAPE, file = paste('output/', sprintf('%02d', s), '/rds/computed_error_MAPE.rds', sep = ''))
+  saveRDS(object = computed_error_MAPE, file = paste('output/', sprintf('%02d', s), '/rds/computed_error_MAAPE.rds', sep = ''))
 }
-
-
-
-
-
-
-
-
-
-
-   
-
-
-
-# Partial results
-t <- 60 # 7147 infectious individuals at t = 70
-a <- (prod(res(area_pop)) / (mult_factor ** 2))
-x <- processed_result$result_r_mean[[t]] # Intensity
-y <- x * a # Number of infectious individuals
-sum(values(y)) # 11099.25
-z_partial <- y / (raster::extract(x = area_pop, y = rasterToPoints(y)[, 1:2]) / (mult_factor ** 2)) # Proportional of infectious people regarding the total population
-z <- z_partial / sum(values(z_partial))
-plot(x)
-
-x_null <- processed_result_null$result_r_mean[[t]] # Intensity
-y_null <- x_null * a # Number of infectious individuals
-sum(values(y_null)) # 7157.642
-z_partial_null <- y / (raster::extract(x = area_pop, y = rasterToPoints(y_null)[, 1:2]) / (mult_factor ** 2)) # Proportional of infectious people regarding the total population
-z_null <- z_partial_null / sum(values(z_partial_null))
-plot(z_null)
-
-
-# Error analysis
-
-
-

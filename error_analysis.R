@@ -32,13 +32,13 @@ compute_MAPE <- function (int_val, res_val) {
   sum(r) / N
 }
 
-plot_error <- function (computed_error, s, error_type = 'MAPE') {
-  png(filename = paste('output/', sprintf('%02d', s), '/plots/error_', error_type, '.png', sep = ''), width = 800, height = 600)
+plot_error <- function (computed_error, s, error_type = 'MAPE', save = TRUE) {
+  if (save) { png(filename = paste('output/', sprintf('%02d', s), '/plots/error_', error_type, '.png', sep = ''), width = 800, height = 600) }
   par(family = 'LM Roman 10', mfrow = c(1, 1))
   if (error_type == 'MAAPE') { y_max <- 1.58 } else { y_max <- max(computed_error) }
   plot(computed_error, type = 'l', ylim = c(0, y_max), xlab = 'Time', ylab = error_type, main = paste(error_type, ' (', sprintf('%02d', s), ')', sep = ''))
   # lines(computed_error, col = 'red')
   abline(v = N_restricted, lty = 2)
   # legend(x = 'topleft', legend = c('Alternative model', 'Null model'), col = c('black', 'red'), lty = 1)
-  dev.off()
+  if (save) { dev.off() }
 }

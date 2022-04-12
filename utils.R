@@ -57,18 +57,18 @@ generate_SIR <- function (N_population, beta, gamma, N = 100) {
   SIR
 }
 
-plot_SIR <- function (SIR, s) {
-  png(filename = paste('output/', sprintf('%02d', s), '/plots/SIR.png', sep = ''), width = 800, height = 600)
+plot_SIR <- function (SIR, s, save = TRUE) {
+  if (save) { png(filename = paste('output/', sprintf('%02d', s), '/plots/SIR.png', sep = ''), width = 800, height = 600) }
   par(family = 'LM Roman 10', mfrow = c(1, 1))
   plot(NA, xlim = c(1, tail(SIR$time, 1)), ylim = c(0, SIR$S[1]), xlab = 'Time', ylab = 'Number of individuals')
   lines(SIR$S, col = 'blue',  lwd = 2)
   lines(SIR$I, col = 'red',   lwd = 2)
   lines(SIR$R, col = 'green', lwd = 2)
-  dev.off()
+  if (save) { dev.off() }
 }
 
 
-plot_infect_locations <- function (area_pop, Terminal, map, infect_locations) {
+plot_infect_locations <- function (area_pop, Terminal, map, infect_locations, s, save = TRUE) {
   max_legend <- ceiling(max(gplot_data(area_pop)$value) / 100) * 100
   for (selected_window in 1:Terminal) {
     print(selected_window)
@@ -79,11 +79,11 @@ plot_infect_locations <- function (area_pop, Terminal, map, infect_locations) {
            labs(x = 'Longitude', y = 'Latitude') +
            theme(text = element_text(family = 'LM Roman 10'), legend.key.width = unit(0.5, 'cm'), legend.key.height = unit(1.29, 'cm'),
                  panel.background = element_rect(fill = 'transparent', color = NA), plot.background = element_rect(fill = 'transparent', color = NA), legend.background = element_rect(fill = 'transparent', color = NA))
-    ggsave(filename = paste('images/maps/plot_', selected_window, '.png', sep = ''), plot = m, width = 3000, height = 1000, units = 'px', dpi = 300, bg = 'transparent')
+    if (save) { ggsave(filename = paste('output/', sprintf('%02d', s), '/plots/maps/plot_', selected_window, '.png', sep = ''), plot = m, width = 3000, height = 1000, units = 'px', dpi = 300, bg = 'transparent') } else { print(m) }
   }
 }
 
-plot_estimated_infectious <- function (Y_hat, SIR, N_restricted, s) {
+plot_estimated_infectious <- function (Y_hat, SIR, N_restricted, s, save = TRUE) {
   Y_hat_mean <- apply(Y_hat, c(2, 3), mean) 
   Y_hat_.025 <- apply(Y_hat, c(2, 3), quantile, prob = c(0.025))
   Y_hat_.975 <- apply(Y_hat, c(2, 3), quantile, prob = c(0.975))
@@ -92,7 +92,7 @@ plot_estimated_infectious <- function (Y_hat, SIR, N_restricted, s) {
  
   dfI <- data.frame(t = SIR$time, M = M, L = L, U = U)
   
-  png(filename = paste('output/', sprintf('%02d', s), '/plots/Infect.png', sep = ''), width = 800, height = 600)
+  if (save) { png(filename = paste('output/', sprintf('%02d', s), '/plots/Infect.png', sep = ''), width = 800, height = 600) }
   par(family = 'LM Roman 10', mfrow = c(1, 1))
   plot(NA, xlim = c(0, N), ylim = c(0, max_y), main = '', xlab = 'Time', ylab = 'Number of individuals', xaxs = 'i', yaxs = 'i')
   polygon(c(dfI$t, rev(dfI$t)), c(dfI$L, rev(dfI$U)), col = rgb(1, 0, 0, alpha = 0.1), border = FALSE)
@@ -100,6 +100,6 @@ plot_estimated_infectious <- function (Y_hat, SIR, N_restricted, s) {
   lines(x = SIR$time, y = dfI$M, col = 2, lty = 2, lwd = 3)
   abline(v = N_restricted, lty = 2)
   legend(x = 'topleft', legend = c('Infected', 'Est. Infected'), col = rep('red', 2), lty = c(1, 2), lwd = rep(2, 2), cex = 0.75, bg = 'white')
-  dev.off()
+  if (save) { dev.off() }
 }
 
