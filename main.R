@@ -121,5 +121,5 @@ for (s in 1:S) {
   plot_error(computed_error = computed_error_MAAPE, s = s, error_type = 'MAAPE') # PLOT
   
   saveRDS(object = computed_error_MAPE, file = paste('output/', sprintf('%02d', s), '/rds/computed_error_MAPE.rds',  sep = ''))
-  saveRDS(object = computed_error_MAPE, file = paste('output/', sprintf('%02d', s), '/rds/computed_error_MAAPE.rds', sep = ''))
+  saveRDS(object = computed_error_MAAPE, file = paste('output/', sprintf('%02d', s), '/rds/computed_error_MAAPE.rds', sep = ''))
 }
