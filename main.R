@@ -28,7 +28,7 @@ a     <- 0.5
 S <- length(scenarios)
 for (s in 1:S) {
   
-  print(paste(sprintf('%02d', s), S, sep = ''))
+  print(paste(sprintf('%02d', s), ' out of ', S, sep = ''))
   
   inv_phi    <- scenarios[[s]]$inv_phi
   alpha      <- scenarios[[s]]$alpha
