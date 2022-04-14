@@ -16,7 +16,7 @@ I0       <- 1
 SIR_generation <- 'NB'
 SIR_fitting    <- 'NB'
 
-mult_factor <- 2
+mult_factor <- 1
 
 nu    <- 1
 scale <- 0.05
