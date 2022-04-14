@@ -19,6 +19,8 @@ generate_intensity <- function (area_pop, SIR, nu, scale, sig_2, mu, sd, a, mode
   y_seq <- seq(from = ex[3] + (rs[2] / 2), to = ex[4] - (rs[2] / 2), by = rs[2])
   
   if (model == 'IID') {
+    mu <- -1 * (sig_2 + (sd ** 2)) / 2 
+    
     cvModel <- RMmatern(nu = nu, var = sig_2, scale = scale) + RMtrend(mean = mu)
     
     process <- list()
@@ -34,6 +36,8 @@ generate_intensity <- function (area_pop, SIR, nu, scale, sig_2, mu, sd, a, mode
       intensities[[t]] <- ((tmp / sum(values(tmp), na.rm = TRUE)) * SIR$I[t]) / prod(res(ref))
     }
   } else if (model == 'AR1') {
+    mu <- -1 * ((sig_2 / (1 - a ** 2)) + (sd ** 2)) / 2 
+    
     cvModel <- RMmatern(nu = nu, var = sig_2, scale = scale) + RMtrend(mean = 0)
     
     p <- raster(RFsimulate(model = cvModel, x = x_seq, y = y_seq))
