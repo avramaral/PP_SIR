@@ -83,21 +83,22 @@ fit_spatioTemporal <- function (area_pop, count_cells, Y_hat, N_restricted, n_ro
   data_INLA <- data.frame(id = 1:(N_sp * N_tm),
                           id_sp = rep(id_sp, N_tm),
                           id_tm = rep(id_tm, each = N_sp),
+                          id_tm2 = rep(id_tm, each = N_sp),
                           counts = convert_counts(ts = ts, area_pop = area_pop, count_cells = count_cells, N_restricted = N_restricted, n_row_count = n_row_count, n_col_count = n_col_count),
                           infect = rep(apply(Y_hat, c(2, 3), mean)[, 2], each = N_sp),
                           lambda_0 = convert_pop(area_pop = area_pop, N_tm = N_tm, n_row_count = n_row_count, n_col_count = n_col_count) / cellarea)
 
   if (null_model) {
     if (!AR_include) {
-      formula <- counts ~ 1 + f(id,  model = 'iid')  + f(id_sp, model = 'matern2d', nrow = n_row_count, ncol = n_col_count, nu = 1)
+      formula <- counts ~ 1 + f(id_tm,  model = 'iid')  + f(id_sp, model = 'matern2d', nrow = n_row_count, ncol = n_col_count, nu = 1)
     } else {
-      formula <- counts ~ 1 + f(id,  model = 'iid')  + f(id_sp, model = 'matern2d', nrow = n_row_count, ncol = n_col_count, nu = 1) + f(id_tm,  model = 'ar1')
+      formula <- counts ~ 1 + f(id_tm,  model = 'iid')  + f(id_sp, model = 'matern2d', nrow = n_row_count, ncol = n_col_count, nu = 1) + f(id_tm2,  model = 'ar1')
     }
   } else {
     if (!AR_include) {
-      formula <- counts ~ 0 + offset(log(infect * lambda_0)) + f(id,  model = 'iid')  + f(id_sp, model = 'matern2d', nrow = n_row_count, ncol = n_col_count, nu = 1)
+      formula <- counts ~ 0 + offset(log(infect * lambda_0)) + f(id_tm,  model = 'iid')  + f(id_sp, model = 'matern2d', nrow = n_row_count, ncol = n_col_count, nu = 1)
     } else {
-      formula <- counts ~ 0 + offset(log(infect * lambda_0)) + f(id,  model = 'iid')  + f(id_sp, model = 'matern2d', nrow = n_row_count, ncol = n_col_count, nu = 1) + f(id_tm,  model = 'ar1') 
+      formula <- counts ~ 0 + offset(log(infect * lambda_0)) + f(id_tm,  model = 'iid')  + f(id_sp, model = 'matern2d', nrow = n_row_count, ncol = n_col_count, nu = 1) + f(id_tm2,  model = 'ar1') 
     }
   }
   
