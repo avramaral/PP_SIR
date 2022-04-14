@@ -27,7 +27,7 @@ generate_intensity <- function (area_pop, SIR, nu, scale, sig_2, mu, sd, a, mode
       p <- raster(RFsimulate(model = cvModel, x = x_seq, y = y_seq))
       r <- ref
       values(r)[pos] <- values(p)[pos]
-      values(r) <- exp(values(r) + rnorm(n = length(values(r)), mean = 0, sd = sd))
+      values(r) <- exp(values(r) + rnorm(n = 1, mean = 0, sd = sd))
       process[[t]] <- r
       
       tmp <- (process[[t]] * ref)
@@ -49,7 +49,7 @@ generate_intensity <- function (area_pop, SIR, nu, scale, sig_2, mu, sd, a, mode
       process[[t]] <- r
     }
     
-    process <- lapply(X = process, FUN = function (gp) { values(gp) <- exp(values(gp) + mu + rnorm(n = length(values(gp)), mean = 0, sd = sd)); gp })
+    process <- lapply(X = process, FUN = function (gp) { values(gp) <- exp(values(gp) + mu + rnorm(n = 1, mean = 0, sd = sd)); gp })
     
     for (t in ts) { 
       tmp <- (process[[t]] * ref)
