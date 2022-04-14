@@ -22,7 +22,7 @@ nu    <- 1
 scale <- 0.05
 sig_2 <- 0.2
 mu    <- -1 * sig_2 / 2 
-sd    <- sqrt(0.01)
+sd    <- 0.5
 a     <- 0.5
 
 S <- length(scenarios)
