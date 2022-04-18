@@ -13,20 +13,29 @@ gplot_data <- function(x, maxpixels = 10e4)  {
   dat
 }
 
-SIR_solver <- function(beta, gamma, SIR0, times, N_population) {
+SIR_solver <- function(beta, gamma, C, SIR0, times) {
   
-  SIR_function <- function(time, variables, parameters, N_population) {
-    with(as.list(c(variables, parameters)), {
-      dS <- -1 * beta * I * S
-      dI <- beta * I * S - gamma * I
-      dR <- -1 * dS - dI
+  SIR_function <- function(time, variables, parameters) {
+    n_compart <- 3
+    n_classes <- length(variables) / n_compart
+    S <- as.matrix(variables[1:n_classes])
+    I <- as.matrix(variables[(n_classes + 1):(2 * n_classes)])
+    R <- as.matrix(variables[(2 * n_classes + 1):(3 * n_classes)])
+    
+    # I[I < 0] <- 0
+    with(as.list(parameters), {
+      N_population <- S + I + R
+      dS <- -1 * as.matrix(beta * S) * (as.matrix(C) %*% as.matrix(I / N_population))
+      dI <- -1 * dS - gamma * as.matrix(I)
+      dR <- gamma * as.matrix(I)
       return(list(c(dS, dI, dR)))
     })
   }
   
   parameters_values <- c(
     beta  = beta, 
-    gamma = gamma 
+    gamma = gamma, 
+    C = C
   )
   
   initial_values <- c(
@@ -39,21 +48,20 @@ SIR_solver <- function(beta, gamma, SIR0, times, N_population) {
     y = initial_values,
     times = times,
     func = SIR_function,
-    parms = parameters_values,
-    N_population = N_population
+    parms = parameters_values
   )
   
   as.data.frame(out)
 }
 
-generate_SIR <- function (N_population, beta, gamma, N = 100) {
-  SIR0  <- list(S = N_population - 1, I = 1, R = 0)
+generate_SIR <- function (N_population, C, SIR0, beta, gamma, N = 100) {
   times <- 1:N
+  n_classes <- nrow(C)
   
-  SIR <- SIR_solver(beta = beta, gamma = gamma, SIR0 = SIR0, times = times, N_population = N_population)
-  SIR[, 2] <- floor(SIR[, 2])
-  SIR[, 3] <- floor(SIR[, 3])
-  SIR[, 4] <- N_population - SIR[, 2] - SIR[, 3]
+  SIR <- SIR_solver(beta = beta, gamma = gamma, C = C, SIR0 = SIR0, times = times)
+  SIR[, 2:(n_classes + 1)] <- floor(SIR[, 2:(n_classes + 1)])
+  SIR[, (n_classes + 2):(n_classes * 2 + 1)] <- floor(SIR[, (n_classes + 2):(n_classes * 2 + 1)])
+  SIR[, (n_classes * 2 + 2):(n_classes * 3 + 1)] <- as.data.frame(matrix(data = N_population, nrow = length(times), ncol = n_classes, byrow = TRUE)) - SIR[, 2:(n_classes + 1)] - SIR[, (n_classes + 2):(n_classes * 2 + 1)]
   SIR
 }
 
@@ -67,15 +75,45 @@ plot_SIR <- function (SIR, s, save = TRUE) {
   if (save) { dev.off() }
 }
 
+plot_SIR_sep <- function (SIR_sep, prop_class, s, save = TRUE) {
+  n_classes <- length(prop_class)
+  if (save) { png(filename = paste('output/', sprintf('%02d', s), '/plots/SIR_sep.png', sep = ''), width = 800, height = 600) }
+  par(family = 'LM Roman 10', mfrow = c(1, 1))
+  plot(NA, xlim = c(1, tail(SIR_sep$time, 1)), ylim = c(0, max(SIR_sep)), xlab = 'Time', ylab = 'Number of individuals')
+  for (i in 1:n_classes) {
+    lines(SIR_sep[, (i + 1)], col = 'blue',  lwd = 2, lty = (i + 1))
+    lines(SIR_sep[, (i + n_classes + 1)], col = 'red',   lwd = 2, lty = (i + 1))
+    lines(SIR_sep[, (i + (2 * n_classes) + 1)], col = 'green', lwd = 2, lty = (i + 1))
+  }
+  if (save) { dev.off() }
+}
+
 
 plot_infect_locations <- function (area_pop, Terminal, map, infect_locations, s, save = TRUE) {
-  max_legend <- ceiling(max(gplot_data(area_pop)$value) / 100) * 100
+  mx_legend <- ceiling(max(gplot_data(area_pop)$value) / 100) * 100
+  n_classes <- length(infect_locations)
+  
+  select_pt <- function (selected_window, n_classes) {
+    for (i in 1:n_classes) {
+      if (i == 1) {
+        pts <- as.data.frame(infect_locations[[i]][[selected_window]])
+        pts$class <- rep(x = i, times = nrow(pts))
+      } else {
+        partial <- as.data.frame(infect_locations[[i]][[selected_window]])
+        partial$class <- rep(x = i, times = nrow(partial))
+        pts <- rbind(pts, partial)
+      }
+    }
+    pts
+  }
+  
   for (selected_window in 1:Terminal) {
     print(selected_window)
     m <- ggmap(map) +
            geom_tile(data = gplot_data(area_pop), aes(x = x, y = y, fill = value), alpha = 0.5) +
-           geom_point(data = as.data.frame(infect_locations[[selected_window]]), aes(x = x, y = y), alpha = 0.5, color = 'red') +
-           scale_fill_gradientn(colors = rainbow(n = max_legend / 100, start = 0.1, end = 0.9), name = 'Population', limits = c(0, max_legend), breaks = seq(0, max_legend, 100)) +
+           geom_point(data = select_pt(selected_window = selected_window, n_classes = n_classes), aes(x = x, y = y, color = as.factor(class)), alpha = 0.5) +
+           guides(color = 'none') +
+           scale_fill_gradientn(colors = rainbow(n = mx_legend / 100, start = 0.1, end = 0.9), name = 'Population', limits = c(0, mx_legend), breaks = seq(0, mx_legend, 100)) +
            labs(x = 'Longitude', y = 'Latitude') +
            theme(text = element_text(family = 'LM Roman 10'), legend.key.width = unit(0.5, 'cm'), legend.key.height = unit(1.29, 'cm'),
                  panel.background = element_rect(fill = 'transparent', color = NA), plot.background = element_rect(fill = 'transparent', color = NA), legend.background = element_rect(fill = 'transparent', color = NA))
@@ -83,23 +121,30 @@ plot_infect_locations <- function (area_pop, Terminal, map, infect_locations, s,
   }
 }
 
-plot_estimated_infectious <- function (Y_hat, SIR, N_restricted, s, save = TRUE) {
-  Y_hat_mean <- apply(Y_hat, c(2, 3), mean) 
-  Y_hat_.025 <- apply(Y_hat, c(2, 3), quantile, prob = c(0.025))
-  Y_hat_.975 <- apply(Y_hat, c(2, 3), quantile, prob = c(0.975))
-  M <- Y_hat_mean[, 2]; L <- Y_hat_.025[, 2]; U <- Y_hat_.975[, 2];
-  max_y <- max(Y_hat_.975[, 2]) + 100
- 
-  dfI <- data.frame(t = SIR$time, M = M, L = L, U = U)
+plot_estimated_infectious <- function (Y_hat, SIR, N_restricted, n_classes, s, save = TRUE) {
   
-  if (save) { png(filename = paste('output/', sprintf('%02d', s), '/plots/Infect.png', sep = ''), width = 800, height = 600) }
-  par(family = 'LM Roman 10', mfrow = c(1, 1))
-  plot(NA, xlim = c(0, N), ylim = c(0, max_y), main = '', xlab = 'Time', ylab = 'Number of individuals', xaxs = 'i', yaxs = 'i')
-  polygon(c(dfI$t, rev(dfI$t)), c(dfI$L, rev(dfI$U)), col = rgb(1, 0, 0, alpha = 0.1), border = FALSE)
-  lines(x = SIR$time, y = SIR$I, col = 2, lwd = 3)
-  lines(x = SIR$time, y = dfI$M, col = 2, lty = 2, lwd = 3)
-  abline(v = N_restricted, lty = 2)
-  legend(x = 'topleft', legend = c('Infected', 'Est. Infected'), col = rep('red', 2), lty = c(1, 2), lwd = rep(2, 2), cex = 0.75, bg = 'white')
-  if (save) { dev.off() }
+  Y_hat_cp <- Y_hat
+  
+  for (k in 1:n_classes) {
+    Y_hat <- Y_hat_cp[, , c(k, (n_classes + k), (n_classes * 2 + k))]
+    
+    Y_hat_mean <- apply(Y_hat, c(2, 3), mean) 
+    Y_hat_.025 <- apply(Y_hat, c(2, 3), quantile, prob = c(0.025))
+    Y_hat_.975 <- apply(Y_hat, c(2, 3), quantile, prob = c(0.975))
+    M <- Y_hat_mean[, 2]; L <- Y_hat_.025[, 2]; U <- Y_hat_.975[, 2];
+    max_y <- max(Y_hat_.975[, 2]) + 100
+    
+    dfI <- data.frame(t = SIR$SIR$time, M = M, L = L, U = U)
+    
+    if (save) { png(filename = paste('output/', sprintf('%02d', s), '/plots/Infect_group_', k, '.png', sep = ''), width = 800, height = 600) }
+    par(family = 'LM Roman 10', mfrow = c(1, 1))
+    plot(NA, xlim = c(0, N), ylim = c(0, max_y), main = paste('Group ', k, sep = ''), xlab = 'Time', ylab = 'Number of individuals', xaxs = 'i', yaxs = 'i')
+    polygon(c(dfI$t, rev(dfI$t)), c(dfI$L, rev(dfI$U)), col = rgb(1, 0, 0, alpha = 0.1), border = FALSE)
+    lines(x = SIR$SIR$time, y = SIR$SIR_sep[, (n_classes + k + 1)], col = 2, lwd = 3)
+    lines(x = SIR$SIR$time, y = dfI$M, col = 2, lty = 2, lwd = 3)
+    abline(v = N_restricted, lty = 2)
+    legend(x = 'topleft', legend = c('Infected', 'Est. Infected'), col = rep('red', 2), lty = c(1, 2), lwd = rep(2, 2), cex = 0.75, bg = 'white')
+    if (save) { dev.off() }
+  }
 }
 

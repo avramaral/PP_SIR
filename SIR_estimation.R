@@ -1,41 +1,17 @@
-SIR_SDE <- function (start, Terminal, delta, N, N_restricted, N_population, SIR, n_chains = 4, iter = 4e3, warmup = 2e3) {
-  
-  ts <- seq(from = start, to = Terminal, by = delta)
-  data_stan <- list(N = N,
-                    N_restricted = N_restricted,
-                    N_population = N_population,
-                    delta = delta,
-                    t = ts[1:N_restricted],
-                    Y = as.matrix(SIR[1:N_restricted, 2:4]))
-  
-  initial_values <- function(chain_id = 1) { 
-    list(
-      alpha   = runif(1, 0, 1), 
-      beta    = runif(1, 0, 2) / N_population, 
-      gamma   = runif(1, 0, 1)
-    ) 
-  }
-  
-  fit <- stan(file = 'model_SIR_SDE.stan',
-              init = lapply(1:n_chains, function(id) initial_values(chain_id = id)),
-              data = data_stan, 
-              chains = n_chains, 
-              iter = iter, 
-              warmup = warmup,
-              control = list(adapt_delta = 0.99))
-  
-  fit
-}
+SIR_NB <- function (start, Terminal, N, N_restricted, N_population, SIR, prop_class, C, n_chains = 4, iter = 4e3, warmup = 2e3) {
 
-SIR_NB <- function (start, Terminal, N, N_restricted, N_population, SIR, n_chains = 4, iter = 4e3, warmup = 2e3) {
+  n_classes <- nrow(C)
+  N_population <- as.integer(round(x = N_population * prop_class, digits = 0))
   
   ts <- seq(from = start, to = Terminal, by = delta)
   data_stan <- list(N = (N_restricted - 1),
-                    Y0 = unname(unlist(SIR[1, 2:4])),
+                    n_classes = n_classes,
+                    Y0 = unname(unlist(SIR$SIR_sep[1, -1])),
                     t0 = 0,
                     ts = ts[1:(N_restricted - 1)],
                     N_population = N_population,
-                    cases = SIR$I[2:N_restricted])
+                    cases = SIR$SIR_sep[2:N_restricted, (n_classes + 2):(n_classes * 2 + 1)], 
+                    C = C)
   
   fit <- stan(file = 'model_SIR.stan',
               data = data_stan, 
@@ -48,12 +24,10 @@ SIR_NB <- function (start, Terminal, N, N_restricted, N_population, SIR, n_chain
 }
 
 
-mixing_assessment <- function (fit, par_names = c('alpha', 'beta', 'gamma'), plotting = TRUE, scaled_beta = FALSE, N_population = NULL) {
+mixing_assessment <- function (fit, par_names = c('phi', 'beta', 'gamma'), plotting = TRUE) {
   est_par1 <- rstan::extract(fit, pars = c(par_names[1]))[[1]]
   est_par2 <- rstan::extract(fit, pars = c(par_names[2]))[[1]]
   est_par3 <- rstan::extract(fit, pars = c(par_names[3]))[[1]]
-  
-  if (scaled_beta) { est_par2 <- est_par2 / N_population }
   
   n_chains <- length(fit@stan_args)
   iter <- fit@stan_args[[1]]$iter
@@ -76,7 +50,7 @@ mixing_assessment <- function (fit, par_names = c('alpha', 'beta', 'gamma'), plo
   list(est_par1 = est_par1, est_par2 = est_par2, est_par3 = est_par3)
 }
 
-parameters_summary <- function (parameters, par_names = c('alpha', 'beta', 'gamma'), probs = c(0.025, 0.975), round_dig = 6) {
+parameters_summary <- function (parameters, par_names = c('phi', 'beta', 'gamma'), probs = c(0.025, 0.975), round_dig = 6) {
   est_par1_q <- round(quantile(x = parameters$est_par1, probs = probs), round_dig)
   est_par1_m <- round(mean(parameters$est_par1), round_dig)
   est_par2_q <- round(quantile(x = parameters$est_par2, probs = probs), round_dig)
@@ -89,7 +63,12 @@ parameters_summary <- function (parameters, par_names = c('alpha', 'beta', 'gamm
   parSummary
 }
 
-generate_Y_hat <- function (parameters, N_population) {
+generate_Y_hat <- function (parameters, SIR_sep, prop_class, C, N_population) {
+  
+  n_classes <- length(prop_class)
+  N_population <- N_population * prop_class
+  
+  SIR0 <- list(S = unname(unlist(SIR_sep[1, (2:(n_classes + 1))])), I = unname(unlist(SIR_sep[1, ((n_classes + 2):(n_classes * 2 + 1))])), R = unname(unlist(SIR_sep[1, ((n_classes * 2 + 2):(n_classes * 3 + 1))])))
   
   phi   <- parameters$est_par1
   beta  <- parameters$est_par2
@@ -97,14 +76,23 @@ generate_Y_hat <- function (parameters, N_population) {
   
   progressbar <- txtProgressBar(min = 1, max = length(beta), initial = 1) 
   
-  m <- array(data = NA, dim = c(length(beta), 100, 3))
+  m <- array(data = NA, dim = c(length(beta), 100, (3 * n_classes)))
   for (i in 1:length(beta)) {
-    m_partial <- as.matrix(generate_SIR(N_population = N_population, beta = beta[i], gamma = gamma[i])[2:4])
-    m[i, , ] <- cbind(m_partial[, 1], rnbinom(n = 100, size = phi[i], mu = m_partial[, 2]), m_partial[, 3])
+    m_partial <- as.matrix(generate_SIR(N_population = N_population, C = C, SIR0 = SIR0, beta = beta[i], gamma = gamma[i])[, -1])
+    # Simulate infectious
+    for (k in 1:n_classes) {
+      tmp <- rnbinom(n = 100, size = phi[i], mu = m_partial[, (n_classes + k)])
+      if (k == 1) {
+        inf <- tmp
+      } else {
+        inf <- cbind(inf, tmp)
+      }
+    }
+    
+    m[i, , ] <- cbind(m_partial[, 1:n_classes], unname(inf), m_partial[, (n_classes * 2 + 1):(n_classes * 3)])
     setTxtProgressBar(progressbar, i)
   }
   close(progressbar)
 
   m
 }
-

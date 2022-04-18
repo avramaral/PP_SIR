@@ -35,79 +35,115 @@ live_map <- function (area_pop, zoom = 10, maptype = 'terrain') {
   get_map(location = c(ll[1], ll[3] , ll[2], ll[4]), zoom = zoom, maptype = maptype)
 }
 
-simulate_SIR <- function (start, Terminal, delta, N_population, I0, beta, gamma, method = 'SDE', alpha = NULL, phi = NULL) {
+simulate_SIR <- function (start, Terminal, delta, N_population, prop_class, C, I0, beta, gamma, phi) {
+  
+  validate_contact_matrix <- function (prop_class, C) {
+    v <- TRUE
+    for (i in 1:length(prop_class)) {
+      for (j in 1:length(prop_class)) {
+        if ((prop_class[i] * C[i, j]) != (prop_class[j] * C[j, i])) { v <- FALSE }
+      } 
+    }
+    v
+  }
+  
+  if (!validate_contact_matrix(prop_class = prop_class, C = C)) { stop('Provide a valid contact age matrix.') }
   
   times <- seq(from = start, to = Terminal, by = delta)
   N <- length(times)
-  S <- rep(x = 0, times = N)
-  I <- rep(x = 0, times = N)
-  R <- rep(x = 0, times = N)
+  S <- matrix(data = rep(x = 0, times = N * length(prop_class)), nrow = N, ncol = length(prop_class), byrow = FALSE)
+  I <- matrix(data = rep(x = 0, times = N * length(prop_class)), nrow = N, ncol = length(prop_class), byrow = FALSE)
+  R <- matrix(data = rep(x = 0, times = N * length(prop_class)), nrow = N, ncol = length(prop_class), byrow = FALSE)
   
-  S[1] <- N_population - I0
-  I[1] <- I0
-  R[1] <- 0
+  N_population <- N_population * prop_class
   
-  if (method == 'SDE') {
-    
-    for (i in 2:N) {
-      I[i] <- I[(i - 1)] + (((beta * S[(i - 1)] * I[(i - 1)]) - (gamma * I[(i - 1)])) * delta) + ((alpha * I[(i - 1)]) * rnorm(n = 1, mean = 0, sd = sqrt(delta)))
-      R[i] <- R[(i - 1)] + ((gamma * I[(i - 1)]) * delta)
-      S[i] <- N_population - I[i] - R[i]
-    }
-    
-    I <- floor(I)
-    R <- floor(R)
-    S <- N_population - I - R
-    
-  } else if (method == 'NB') {
-    
-    generated_SIR <- generate_SIR(N_population = N_population, beta = beta, gamma = gamma)
-    I <- c(I0, generated_SIR$I[-1])
-    I <- c(I0, rnbinom(n = (length(I) - 1), size = phi, mu = I[-1]))
-    
-    R <- generated_SIR$R
-    S <- N_population - I - R
+  S[1, ] <- N_population - I0
+  I[1, ] <- I0
+  R[1, ] <- rep(x = 0, times = length(prop_class))
+  
+  generated_SIR <- generate_SIR(N_population = N_population, C = C, SIR0 = list(S = S[1, ], I = I[1, ], R = R[1, ]), beta = beta, gamma = gamma, N = N)
+  I <- rbind(I0, generated_SIR[-1, (length(prop_class) + 2):(length(prop_class) * 2 + 1)])
+  for (i in 1:length(prop_class)) {
+    I[, i] <- c(I0[i], rnbinom(n = (nrow(I) - 1), size = phi, mu = I[-1, i]))
   }
+  R <- floor(generated_SIR[, (length(prop_class) * 2 + 2):(length(prop_class) * 3 + 1)])
+  S <- as.data.frame(matrix(data = N_population, nrow = length(times), ncol = length(prop_class), byrow = TRUE)) - I - R
   
-  data.frame(time = times, S = S, I = I, R = R)
+  SIR     <- data.frame(time = times, S = rowSums(S), I = rowSums(I), R = rowSums(R))
+  SIR_sep <- data.frame(time = times, S = S, I = I, R = R)
+  list(SIR = SIR, SIR_sep = SIR_sep)
 }
 
-simulate_locations <- function (SIR, intensities) {
+simulate_locations <- function (SIR_sep, intensities) {
+  n_classes <- length(intensities)
+  times <- SIR_sep$time
   
-  times <- SIR$time
-  progressbar <- txtProgressBar(min = 1, max = length(times), initial = 1) 
-  
-  infectious_locations <- list()
-  for (t in times) {
-    if (t == 1) {
-      n_points <- rpoint(n = SIR$I[t], f = as.im(intensities[[t]] + 1e-6))
-      marks(n_points) <- t
-      infectious_locations[[t]] <- n_points
-    } else {
-      rec_diff <- SIR$R[t] - SIR$R[(t - 1)]
-      if ((SIR$I[t] != 0) | (SIR$I[(t - 1)] != 0)) { inf_diff <- SIR$I[t] - SIR$I[(t - 1)] + rec_diff } else { inf_diff <- 0 } # Deal with cases when no infectious occur, but S and R change
-      if (inf_diff < 0) {
-        rec_diff <- rec_diff + (-1 * inf_diff)
-        inf_diff <- 0
-      }
-      n_points <- rpoint(n = inf_diff, f = as.im(intensities[[t]] + 1e-6))
-      marks(n_points) <- t
-      
-      if (rec_diff == 0) { 
-        old_marks <- NULL
+  result <- list()
+  for (i in 1:n_classes) {
+    
+    progressbar <- txtProgressBar(min = 1, max = length(times), initial = 1) 
+    
+    infectious_locations <- list()
+    for (t in times) {
+      if (t == 1) {
+        n_points <- rpoint(n = SIR_sep[t, (i + n_classes + 1)], f = as.im(intensities[[i]][[t]] + 1e-6))
+        marks(n_points) <- t
+        infectious_locations[[t]] <- n_points
       } else {
-        old_marks <- sort(marks(infectious_locations[[(t - 1)]]))[1:rec_diff]
+        rec_diff <- SIR_sep[t, (i + (2 * n_classes) + 1)] - SIR_sep[(t - 1), (i + (2 * n_classes) + 1)]
+        if ((SIR_sep[t, (i + n_classes + 1)] != 0) | (SIR_sep[(t - 1), (i + n_classes + 1)] != 0)) { inf_diff <- SIR_sep[t, (i + n_classes + 1)] - SIR_sep[(t - 1), (i + n_classes + 1)] + rec_diff } else { inf_diff <- 0 } # Deal with cases when no infectious occur, but S and R change
+        if (inf_diff < 0) {
+          rec_diff <- rec_diff + (-1 * inf_diff)
+          inf_diff <- 0
+        }
+        n_points <- rpoint(n = inf_diff, f = as.im(intensities[[i]][[t]] + 1e-6))
+        marks(n_points) <- t
+        
+        if (rec_diff == 0) { 
+          old_marks <- NULL
+        } else {
+          old_marks <- sort(marks(infectious_locations[[(t - 1)]]))[1:rec_diff]
+        }
+        old_points <- infectious_locations[[(t - 1)]]
+        for (o in old_marks) {
+          removed_point <- old_points[marks(old_points) == o][1]
+          old_points <- old_points[!((old_points$x == removed_point$x) & (old_points$y == removed_point$y))] 
+        }
+        infectious_locations[[t]] <- superimpose(n_points, old_points)
       }
-      old_points <- infectious_locations[[(t - 1)]]
-      for (o in old_marks) {
-        removed_point <- old_points[marks(old_points) == o][1]
-        old_points <- old_points[!((old_points$x == removed_point$x) & (old_points$y == removed_point$y))] 
-      }
-      infectious_locations[[t]] <- superimpose(n_points, old_points)
+      setTxtProgressBar(progressbar, t)
     }
-    setTxtProgressBar(progressbar, t)
+    close(progressbar)
+    
+    result[[i]] <- infectious_locations
   }
-  close(progressbar)
   
-  infectious_locations
+  result
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
