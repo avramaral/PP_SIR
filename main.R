@@ -93,6 +93,8 @@ for (s in 1:S) {
   n_col_count <- ncol(area_pop) * mult_factor
   
   count_cells <- counting_events(area_pop = area_pop, infect_locations = infect_locations, start = start, Terminal = Terminal, delta = delta, n_row = n_row_count, n_col = n_col_count)
+    
+  n_classes <- length(prop_class)
   
   result <- list()
   processed_result <- list()
