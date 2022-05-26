@@ -47,7 +47,7 @@ simulate_SIR <- function (start, Terminal, delta, N_population, prop_class, C, I
     v
   }
   
-  if (!validate_contact_matrix(prop_class = prop_class, C = C)) { stop('Provide a valid contact age matrix.') }
+  # if (!validate_contact_matrix(prop_class = prop_class, C = C)) { stop('Provide a valid contact age matrix.') }
   
   times <- seq(from = start, to = Terminal, by = delta)
   N <- length(times)

@@ -148,3 +148,48 @@ plot_estimated_infectious <- function (Y_hat, SIR, N_restricted, n_classes, s, s
   }
 }
 
+convert_result <- function (area_pop, val, n_row_count, n_col_count) {
+  r <- raster(nrow = n_row_count, ncol = n_col_count)
+  extent(r) <- extent(area_pop)
+  mult_factor <- (n_row_count / nrow(area_pop)) * (n_col_count / ncol(area_pop))
+  values(r) <- raster::extract(x = area_pop, y = rasterToPoints(r)) /  mult_factor
+  m <- matrix(data = values(r), nrow = n_row_count, ncol = n_col_count, byrow = TRUE)
+  v <- as.vector(m)
+  v[which(!is.na(values(r)))] <- val
+  m <- matrix(data = v, nrow = n_row_count, ncol = n_col_count)
+  values(r) <- m
+  r
+}
+
+n_inf_func <- function (n_classes, N, processed_result, area_pop) {
+  
+  cellarea <- prod(res(area_pop))
+  
+  inf_fit <- list()
+  for (k in 1:n_classes) {
+    part <- c()
+    for (t in 1:N) {
+      part <- c(part, sum(values(processed_result[[k]]$result_r_mean[[t]]) * cellarea)
+      )
+    }
+    inf_fit[[k]] <- part
+  }
+  
+  as.data.frame(do.call(cbind, inf_fit))
+}
+
+SIR_obs_gen <- function (SIR, intensities, area_pop) {
+  SIR_obs <- SIR
+  
+  for (k in 1:3) {
+    for (t in 1:Terminal) {
+      # print(sum(values(intensities[[k]][[t]]) * prod(res(area_pop))))
+      SIR_obs$SIR_sep[t, ((3 + 1) + k)] <- sum(values(intensities[[k]][[t]]) * prod(res(area_pop)))
+    }
+  }
+  
+  SIR_obs$SIR$I <- rowSums(SIR$SIR_sep[, 5:7])
+  
+  SIR_obs
+}
+

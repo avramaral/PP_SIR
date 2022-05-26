@@ -50,6 +50,8 @@ counting_events <- function (area_pop, infect_locations, start, Terminal, delta,
 
 fit_spatioTemporal <- function (area_pop, count_cells, Y_hat, N_restricted, n_row_count = 10, n_col_count = 30, null_model = TRUE, AR_include = FALSE, verbose = FALSE) {
   
+  log_0 <- function (x, ...) { ifelse(test = x == 0, yes = 0, no = log(x)) }
+  
   ts <- 1:length(count_cells)
   
   convert_counts <- function (ts, area_pop, count_cells, N_restricted, n_row_count, n_col_count) {
@@ -73,50 +75,57 @@ fit_spatioTemporal <- function (area_pop, count_cells, Y_hat, N_restricted, n_ro
     counts
   }
   
-  convert_pop <- function (area_pop, N_tm, n_row_count, n_col_count) {
+  convert_pop <- function (area_pop, N_tm, n_row_count, n_col_count, cellarea) {
     r <- raster(nrow = n_row_count, ncol = n_col_count)
     extent(r) <- extent(area_pop)
     mult_factor <- ((n_row_count / nrow(area_pop)) * (n_col_count / ncol(area_pop)))
     m <- matrix(data = raster::extract(x = area_pop, y = rasterToPoints(r)), nrow = n_row_count, ncol = n_col_count, byrow = TRUE) / mult_factor
     v <- na.omit(as.vector(m))
-    v <- rep(v, N_tm)
-    v / sum(v, na.rm = TRUE)
+    v <- v / sum(v, na.rm = TRUE) / cellarea
+    rep(v, N_tm)
   }
   
   id_sp <- 1:nrow(count_cells[[1]]); N_sp <- length(id_sp)
   id_tm <- ts; N_tm <- length(id_tm)
+  id_gn <- 1:(N_sp * N_tm)
   cellarea <- prod(res(area_pop)) / ((n_row_count / nrow(area_pop)) * (n_col_count / ncol(area_pop)))
   
   print('Creating data object...')
   data_INLA <- data.frame(id = 1:(N_sp * N_tm),
+                          id_gn = id_gn,
                           id_sp = rep(id_sp, N_tm),
                           id_tm = rep(id_tm, each = N_sp),
-                          id_tm2 = rep(id_tm, each = N_sp),
+                          # id_tm2 = rep(id_tm, each = N_sp),
                           counts = convert_counts(ts = ts, area_pop = area_pop, count_cells = count_cells, N_restricted = N_restricted, n_row_count = n_row_count, n_col_count = n_col_count),
-                          infect = rep(apply(Y_hat, c(2, 3), mean)[, 2], each = N_sp),
-                          lambda_0 = convert_pop(area_pop = area_pop, N_tm = N_tm, n_row_count = n_row_count, n_col_count = n_col_count) / cellarea)
+                          infect = rep(apply(Y_hat, c(2, 3), mean)[, 2], each = N_sp),  # + 1e-12, 
+                          lambda_0 = convert_pop(area_pop = area_pop, N_tm = N_tm, n_row_count = n_row_count, n_col_count = n_col_count, cellarea = cellarea))
   
   if (null_model) {
     if (!AR_include) {
-      formula <- counts ~ 1 + f(id_tm,  model = 'iid')  + f(id_sp, model = 'matern2d', nrow = n_row_count, ncol = n_col_count, nu = 1)
+      formula <- counts ~ 1 + f(id_gn,  model = 'iid')  + f(id_sp, model = 'matern2d', nrow = n_row_count, ncol = n_col_count, nu = 1)
     } else {
-      formula <- counts ~ 1 + f(id_tm,  model = 'iid')  + f(id_sp, model = 'matern2d', nrow = n_row_count, ncol = n_col_count, nu = 1) + f(id_tm2,  model = 'ar1')
+      formula <- counts ~ 1 + f(id_gn,  model = 'iid')  + f(id_sp, model = 'matern2d', nrow = n_row_count, ncol = n_col_count, nu = 1) + f(id_tm,  model = 'ar1')
     }
   } else {
     if (!AR_include) {
-      formula <- counts ~ 0 + offset(log(infect * lambda_0)) + f(id_tm,  model = 'iid')  + f(id_sp, model = 'matern2d', nrow = n_row_count, ncol = n_col_count, nu = 1)
+      formula <- counts ~ 1 + offset(log(infect * lambda_0)) + f(id_gn,  model = 'iid')  + f(id_sp, model = 'matern2d', nrow = n_row_count, ncol = n_col_count, nu = 1)
     } else {
-      formula <- counts ~ 0 + offset(log(infect * lambda_0)) + f(id_tm,  model = 'iid')  + f(id_sp, model = 'matern2d', nrow = n_row_count, ncol = n_col_count, nu = 1) + f(id_tm2,  model = 'ar1') 
+      formula <- counts ~ 1 + offset(log(infect * lambda_0)) + f(id_gn,  model = 'iid')  + f(id_sp, model = 'matern2d', nrow = n_row_count, ncol = n_col_count, nu = 1) + f(id_tm,  model = 'ar1') 
     }
   }
   
-  result <- inla(formula = formula,
-                 family = 'poisson',
-                 data = data_INLA,
-                 # E = rep(cellarea, (N_sp * N_tm)),
-                 control.predictor = list(compute = TRUE, link = 1),
-                 control.compute = list(config = TRUE),
-                 verbose = verbose, safe = TRUE)
+  while (TRUE) {
+    try({
+      result <- inla(formula = formula,
+                     family = 'poisson',
+                     data = data_INLA,
+                     # E = rep(cellarea, (N_sp * N_tm)),
+                     control.predictor = list(compute = TRUE, link = 1),
+                     control.compute = list(config = TRUE),
+                     verbose = verbose, safe = TRUE)
+      break
+    }, silent = FALSE)
+  }
   
   result
 }
@@ -127,26 +136,14 @@ process_result <- function (result, area_pop, n_row_count, n_col_count) {
   ts <- 1:(nrow(result$summary.fitted.values) / N_sp)
   cellarea <- prod(res(area_pop)) / ((n_row_count / nrow(area_pop)) * (n_col_count / ncol(area_pop)))
   
-    convert_result <- function (area_pop, val, n_row_count, n_col_count) {
-      r <- raster(nrow = n_row_count, ncol = n_col_count)
-      extent(r) <- extent(area_pop)
-      mult_factor <- (n_row_count / nrow(area_pop)) * (n_col_count / ncol(area_pop))
-      values(r) <- raster::extract(x = area_pop, y = rasterToPoints(r)) /  mult_factor
-      m <- matrix(data = values(r), nrow = n_row_count, ncol = n_col_count, byrow = TRUE)
-      v <- as.vector(m)
-      v[which(!is.na(values(r)))] <- val
-      m <- matrix(data = v, nrow = n_row_count, ncol = n_col_count)
-      values(r) <- m
-      r
-    }
-    
   quant <- c('0.025quant', '0.975quant', 'mean')
   fitted_values <- list()
   result_r_0250 <- list()
   result_r_0975 <- list()
   result_r_mean <- list()
   for (t in ts) {
-    fitted_values[[t]] <- result$summary.fitted.values[((t - 1) * N_sp + 1):((t) * N_sp), quant]  / cellarea
+    fitted_values[[t]] <- result$summary.fitted.values[((t - 1) * N_sp + 1):((t) * N_sp), quant] / cellarea
+    for (q in 1:length(quant)) { fitted_values[[t]][(is.infinite(fitted_values[[t]][, q]) & (fitted_values[[t]][, q] < 0)), q] <- 0 } # Deal with -Inf
     result_r_0250[[t]] <- convert_result(area_pop = area_pop, val = fitted_values[[t]][, 1], n_row_count = n_row_count, n_col_count = n_col_count)
     result_r_0975[[t]] <- convert_result(area_pop = area_pop, val = fitted_values[[t]][, 2], n_row_count = n_row_count, n_col_count = n_col_count)
     result_r_mean[[t]] <- convert_result(area_pop = area_pop, val = fitted_values[[t]][, 3], n_row_count = n_row_count, n_col_count = n_col_count)

@@ -4,8 +4,8 @@ beta_EP    <- 0.04
 gamma_EP   <- 0.2
 
 inv_phi_FC <- 0.01
-beta_FC    <- 0.02
-gamma_FC   <- 0.2
+beta_FC    <- 0.0175 # 0.02
+gamma_FC   <- 0.1 
 
 scenarios <- list()
 

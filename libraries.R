@@ -9,3 +9,5 @@ library('maptools')
 library('rstan')
 library('INLA')
 library('RandomFields')
+
+RFoptions(install = 'no')

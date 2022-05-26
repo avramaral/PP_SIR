@@ -1,32 +1,5 @@
-source('libraries.R')
-source('utils.R')
-source('data_generation.R')
-source('intensities.R')
-source('SIR_estimation.R')
-source('spatioTemporal_estimation.R')
-source('error_analysis.R')
+source('header.R')
 
-source('scenarios.R')
-
-start    <- 1
-Terminal <- 100
-delta    <- 1
-I0       <- c(1, 1)
-
-mult_factor <- 1
-
-nu    <- 1
-scale <- 0.05
-sig_2 <- 0.2
-mu    <- -1 * sig_2 / 2 
-sd    <- 0.1
-a     <- 0.5
-
-
-prop_class <- c(0.25, 0.75) # 25% of kids and 75% of adults
-C <- matrix(data = c(18, 9, 3, 12), nrow = length(prop_class), ncol = length(prop_class), byrow = TRUE)
-
-S <- length(scenarios)
 for (s in 1:S) {
   
   print(paste(sprintf('%02d', s), ' out of ', S, sep = ''))
@@ -50,10 +23,10 @@ for (s in 1:S) {
   N_population <- sum(values(area_pop), na.rm = TRUE)
   
   SIR <- simulate_SIR(start = start, Terminal = Terminal, delta = delta, N_population = N_population, prop_class = prop_class, C = C, I0 = I0, beta = beta, gamma = gamma, phi = (1 / inv_phi))
-  plot_SIR(SIR = SIR$SIR, s = s) # PLOT
-  plot_SIR_sep(SIR_sep = SIR$SIR_sep, prop_class = prop_class, s = s) # PLOT
+  plot_SIR(SIR = SIR$SIR, s = s, save = F) # PLOT
+  plot_SIR_sep(SIR_sep = SIR$SIR_sep, prop_class = prop_class, s = s, save = F) # PLOT
   
-  int_process <- generate_intensity(area_pop = area_pop, SIR_sep = SIR$SIR_sep, prop_class = prop_class, nu = nu, scale = scale, sig_2 = sig_2, mu = mu, sd = sd, a = a, model = model)
+  int_process <- generate_intensity(area_pop = area_pop, SIR_sep = SIR$SIR_sep, prop_class = prop_class, nu = nu, scale = scale, sig_2 = sig_2, mu = mu, sd = sd, sd_AR1 = sd_AR1, a = a, model = model)
   intensities <- list()
   for (i in 1:length(prop_class)) { intensities[[i]] <- int_process[[i]]$intensities }
   
@@ -69,6 +42,10 @@ for (s in 1:S) {
   # TEMPORAL MODELING #
   #####################
   
+  SIR <- SIR_obs_gen(SIR = SIR, intensities = intensities, area_pop = area_pop) # I might comment this
+  SIR$SIR <- round(SIR$SIR)
+  SIR$SIR_sep <- round(SIR$SIR_sep)
+  
   N <- nrow(SIR$SIR)
   N_restricted <- 50
   
@@ -81,7 +58,7 @@ for (s in 1:S) {
   writeLines(as.character(parameters_sum), est_pars_file)
   close(est_pars_file)
   
-  plot_estimated_infectious(Y_hat = Y_hat, SIR = SIR, N_restricted = N_restricted, n_classes = length(prop_class), s = s) # PLOT
+  plot_estimated_infectious(Y_hat = Y_hat, SIR = SIR, N_restricted = N_restricted, n_classes = length(prop_class), s = s, save = F) # PLOT
   
   saveRDS(object = fit, file = paste('output/', sprintf('%02d', s), '/rds/fit_temporal.rds', sep = ''))
 
@@ -111,18 +88,4 @@ for (s in 1:S) {
   saveRDS(object = result, file = paste('output/', sprintf('%02d', s), '/rds/result_spatioTemporal.rds', sep = ''))
   saveRDS(object = processed_result, file = paste('output/', sprintf('%02d', s), '/rds/processed_result.rds', sep = '')) 
   
-  ##################
-  # ERROR ANALYSIS #
-  ##################
-  
-  computed_error_MAPE  <- compute_error(intensities = intensities, processed_result = processed_result, error_type = 'MAPE' )
-  computed_error_MAAPE <- compute_error(intensities = intensities, processed_result = processed_result, error_type = 'MAAPE')
-  
-  for (k in 1:n_classes) {
-    # plot_error(computed_error = computed_error_MAPE[[k]],  selected_class = k, s = s, error_type = 'MAPE' ) # PLOT
-      plot_error(computed_error = computed_error_MAAPE[[k]], selected_class = k, s = s, error_type = 'MAAPE') # PLOT
-  }
-
-  saveRDS(object = computed_error_MAPE, file = paste('output/', sprintf('%02d', s), '/rds/computed_error_MAPE.rds',  sep = ''))
-  saveRDS(object = computed_error_MAAPE, file = paste('output/', sprintf('%02d', s), '/rds/computed_error_MAAPE.rds', sep = ''))
 }

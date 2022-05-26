@@ -1,4 +1,4 @@
-generate_intensity <- function (area_pop, SIR_sep, prop_class, nu, scale, sig_2, mu, sd, a, model) {
+generate_intensity <- function (area_pop, SIR_sep, prop_class, nu, scale, sig_2, mu, sd, sd_AR1, a, model) {
   n_classes <- length(prop_class)
   
   ts <- SIR_sep$time
@@ -28,6 +28,7 @@ generate_intensity <- function (area_pop, SIR_sep, prop_class, nu, scale, sig_2,
       
       process <- list()
       intensities <- list()
+      progressbar <- txtProgressBar(min = 1, max = length(ts), initial = 1) 
       for (t in ts) {
         p <- raster(RFsimulate(model = cvModel, x = x_seq, y = y_seq))
         r <- ref
@@ -35,33 +36,34 @@ generate_intensity <- function (area_pop, SIR_sep, prop_class, nu, scale, sig_2,
         values(r) <- exp(values(r) + mu + rnorm(n = 1, mean = 0, sd = sd))
         process[[t]] <- r
         
-        tmp <- (process[[t]] * ref)
-        intensities[[t]] <- ((tmp / sum(values(tmp), na.rm = TRUE)) * SIR_sep[t, (i + n_classes + 1)]) / prod(res(ref))
+        tmp <- (process[[t]])
+        partial <- (ref  * tmp) 
+        intensities[[t]] <- ((partial / sum(values(partial), na.rm = TRUE)) / prod(res(area_pop))) * SIR_sep[t, (i + n_classes + 1)]
+        setTxtProgressBar(progressbar, t)
       }
+      close(progressbar)
     } else if (model == 'AR1') {
-      mu <- -1 * ((sig_2 / (1 - a ** 2)) + (sd ** 2)) / 2 
+      mu <- -1 * (sig_2 + ((sd_AR1 ** 2) / (1 - a ** 2)) + (sd ** 2)) / 2 
       
       cvModel <- RMmatern(nu = nu, var = sig_2, scale = scale) + RMtrend(mean = 0)
       
-      p <- raster(RFsimulate(model = cvModel, x = x_seq, y = y_seq))
-      r <- ref
-      values(r)[pos] <- values(p)[pos]
-      
       process <- list()
-      process[[1]] <- r
       intensities <- list()
-      for (t in ts[-1]) {
+      AR1_process <- arima.sim(list(order = c(1, 0, 0), ar = a), n = length(ts), innov = rnorm(n = length(ts), mean = 0, sd = sd_AR1))
+      progressbar <- txtProgressBar(min = 1, max = length(ts), initial = 1) 
+      for (t in ts) {
         p <- raster(RFsimulate(model = cvModel, x = x_seq, y = y_seq))
-        values(r) <- a * values(process[[(t - 1)]]) + values(p) # Preserve NA's, if needed
+        r <- ref
+        values(r)[pos] <- values(p)[pos]
+        values(r) <- exp(values(r) + mu + rnorm(n = 1, mean = 0, sd = sd) + AR1_process[t])
         process[[t]] <- r
+        
+        tmp <- (process[[t]])
+        partial <- (ref  * tmp)
+        intensities[[t]] <- ((partial / sum(values(partial), na.rm = TRUE)) / prod(res(area_pop))) * SIR_sep[t, (i + n_classes + 1)]
+        setTxtProgressBar(progressbar, t)
       }
-      
-      process <- lapply(X = process, FUN = function (gp) { values(gp) <- exp(values(gp) + mu + rnorm(n = 1, mean = 0, sd = sd)); gp })
-      
-      for (t in ts) { 
-        tmp <- (process[[t]] * ref)
-        intensities[[t]] <- ((tmp / sum(values(tmp), na.rm = TRUE)) * SIR_sep[t, (i + n_classes + 1)]) / prod(res(ref))
-      }
+      close(progressbar)
     } else { stop('Choose a valid model.') }
     
     result[[i]] <- list(process = process, intensities = intensities)

@@ -2,8 +2,8 @@ functions {
   real[] SIR(real t, real[] Y, real[] pars, real[] x_r, int[] x_i) {
 
       int n_classes = x_i[1];
-      vector[n_classes] N_population = to_vector(x_i[2:(n_classes + 1)]);
-      matrix[n_classes, n_classes] C = to_matrix(x_i[(n_classes + 2):(1 + n_classes + (n_classes * n_classes))], n_classes, n_classes, 0);
+      vector[n_classes] N_population = to_vector(x_r[1:n_classes]);
+      matrix[n_classes, n_classes] C = to_matrix(x_r[(n_classes + 1):(n_classes + (n_classes * n_classes))], n_classes, n_classes, 0);
       
       vector[n_classes] S = to_vector(Y[1:n_classes]);
       vector[n_classes] I = to_vector(Y[(n_classes + 1):(2 * n_classes)]);
@@ -26,26 +26,26 @@ data {
   real Y0[3 * n_classes];
   real t0;
   real ts[N];
-  int N_population[2];
+  int N_population[n_classes];
   int cases[N, n_classes];
-  int C[n_classes, n_classes];
+  real C[n_classes, n_classes];
 }
 
 transformed data {
-  real x_r[0];
-  int x_i_length = 1 + n_classes + (n_classes * n_classes);
-  int x_i[x_i_length];
-  int count = 2 + n_classes;
+  int x_r_length = n_classes + (n_classes * n_classes);
+  real x_r[x_r_length];
+  int x_i[1];
+  int count = 1 + n_classes;
   
   x_i[1] = n_classes;
   // Population size for each group
   for (i in 1:n_classes) {
-    x_i[(i + 1)] = N_population[i];
+    x_r[i] = N_population[i];
   }
   // Contact matrix
   for (i in 1:n_classes) {
     for (j in 1:n_classes) {
-      x_i[count] = C[i, j]; 
+      x_r[count] = C[i, j]; 
       count = count + 1;
     }
   }
