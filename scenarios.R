@@ -1,4 +1,3 @@
-
 inv_phi_EP <- 0.01
 beta_EP    <- 0.04
 gamma_EP   <- 0.2
@@ -122,4 +121,3 @@ scenarios[[16]] <- list(inv_phi = inv_phi_FC,
                         model_generation = 'AR1',
                         null_model = FALSE,
                         AR_include = TRUE)
-

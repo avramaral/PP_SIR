@@ -88,7 +88,6 @@ plot_SIR_sep <- function (SIR_sep, prop_class, s, save = TRUE) {
   if (save) { dev.off() }
 }
 
-
 plot_infect_locations <- function (area_pop, Terminal, map, infect_locations, s, save = TRUE) {
   mx_legend <- ceiling(max(gplot_data(area_pop)$value) / 100) * 100
   n_classes <- length(infect_locations)
@@ -192,4 +191,3 @@ SIR_obs_gen <- function (SIR, intensities, area_pop) {
   
   SIR_obs
 }
-
