@@ -1,7 +1,14 @@
 SIR_NB <- function (start, Terminal, N, N_restricted, N_population, SIR, prop_class, C, n_chains = 4, iter = 4e3, warmup = 2e3) {
-
+  
   n_classes <- nrow(C)
   N_population <- as.integer(round(x = N_population * prop_class, digits = 0))
+  
+  cases <- SIR$SIR_sep[2:N_restricted, (n_classes + 2):(n_classes * 2 + 1)]
+  if (length(N_population) == 1) {
+    N_population <- array(data = N_population, dim = 1)
+    cases <- as.matrix(cases)
+  }
+  
   
   ts <- seq(from = start, to = Terminal, by = delta)
   data_stan <- list(N = (N_restricted - 1),
@@ -10,7 +17,7 @@ SIR_NB <- function (start, Terminal, N, N_restricted, N_population, SIR, prop_cl
                     t0 = 0,
                     ts = ts[1:(N_restricted - 1)],
                     N_population = N_population,
-                    cases = SIR$SIR_sep[2:N_restricted, (n_classes + 2):(n_classes * 2 + 1)], 
+                    cases = cases, 
                     C = C)
   
   fit <- stan(file = 'model_SIR.stan',
@@ -18,11 +25,12 @@ SIR_NB <- function (start, Terminal, N, N_restricted, N_population, SIR, prop_cl
               chains = n_chains, 
               iter = iter, 
               warmup = warmup,
-              control = list(adapt_delta = 0.99))
+              control = list(adapt_delta = 0.90),
+              #control = list(adapt_delta = 0.99),
+              cores = getOption(x = "mc.cores", default = detectCores()))
   
   fit
 }
-
 
 mixing_assessment <- function (fit, par_names = c('phi', 'beta', 'gamma'), plotting = TRUE) {
   est_par1 <- rstan::extract(fit, pars = c(par_names[1]))[[1]]
