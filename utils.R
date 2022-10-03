@@ -1,7 +1,6 @@
 gplot_data <- function(x, maxpixels = 10e4)  {
   x <- raster::sampleRegular(x, maxpixels, asRaster = TRUE)
   coords <- raster::xyFromCell(x, seq_len(raster::ncell(x)))
-  # Extract values
   dat <- utils::stack(as.data.frame(raster::getValues(x))) 
   names(dat) <- c('value', 'variable')
   
@@ -22,7 +21,6 @@ SIR_solver <- function(beta, gamma, C, SIR0, times) {
     I <- as.matrix(variables[(n_classes + 1):(2 * n_classes)])
     R <- as.matrix(variables[(2 * n_classes + 1):(3 * n_classes)])
     
-    # I[I < 0] <- 0
     with(as.list(parameters), {
       N_population <- S + I + R
       dS <- -1 * as.matrix(beta * S) * (as.matrix(C) %*% as.matrix(I / N_population))
@@ -88,6 +86,7 @@ plot_SIR_sep <- function (SIR_sep, prop_class, s, save = TRUE) {
   if (save) { dev.off() }
 }
 
+
 plot_infect_locations <- function (area_pop, Terminal, map, infect_locations, s, save = TRUE) {
   mx_legend <- ceiling(max(gplot_data(area_pop)$value) / 100) * 100
   n_classes <- length(infect_locations)
@@ -109,13 +108,13 @@ plot_infect_locations <- function (area_pop, Terminal, map, infect_locations, s,
   for (selected_window in 1:Terminal) {
     print(selected_window)
     m <- ggmap(map) +
-           geom_tile(data = gplot_data(area_pop), aes(x = x, y = y, fill = value), alpha = 0.5) +
-           geom_point(data = select_pt(selected_window = selected_window, n_classes = n_classes), aes(x = x, y = y, color = as.factor(class)), alpha = 0.5) +
-           guides(color = 'none') +
-           scale_fill_gradientn(colors = rainbow(n = mx_legend / 100, start = 0.1, end = 0.9), name = 'Population', limits = c(0, mx_legend), breaks = seq(0, mx_legend, 100)) +
-           labs(x = 'Longitude', y = 'Latitude') +
-           theme(text = element_text(family = 'LM Roman 10'), legend.key.width = unit(0.5, 'cm'), legend.key.height = unit(1.29, 'cm'),
-                 panel.background = element_rect(fill = 'transparent', color = NA), plot.background = element_rect(fill = 'transparent', color = NA), legend.background = element_rect(fill = 'transparent', color = NA))
+      geom_tile(data = gplot_data(area_pop), aes(x = x, y = y, fill = value), alpha = 0.5) +
+      geom_point(data = select_pt(selected_window = selected_window, n_classes = n_classes), aes(x = x, y = y, color = as.factor(class)), alpha = 0.5) +
+      guides(color = 'none') +
+      scale_fill_gradientn(colors = rainbow(n = mx_legend / 100, start = 0.1, end = 0.9), name = 'Population', limits = c(0, mx_legend), breaks = seq(0, mx_legend, 100)) +
+      labs(x = 'Longitude', y = 'Latitude') +
+      theme(text = element_text(family = 'LM Roman 10'), legend.key.width = unit(0.5, 'cm'), legend.key.height = unit(1.29, 'cm'),
+            panel.background = element_rect(fill = 'transparent', color = NA), plot.background = element_rect(fill = 'transparent', color = NA), legend.background = element_rect(fill = 'transparent', color = NA))
     if (save) { ggsave(filename = paste('output/', sprintf('%02d', s), '/plots/maps/plot_', selected_window, '.png', sep = ''), plot = m, width = 3000, height = 1000, units = 'px', dpi = 300, bg = 'transparent') } else { print(m) }
   }
 }
@@ -137,7 +136,7 @@ plot_estimated_infectious <- function (Y_hat, SIR, N_restricted, n_classes, s, s
     
     if (save) { png(filename = paste('output/', sprintf('%02d', s), '/plots/Infect_group_', k, '.png', sep = ''), width = 800, height = 600) }
     par(family = 'LM Roman 10', mfrow = c(1, 1))
-    plot(NA, xlim = c(0, N), ylim = c(0, max_y), main = paste('Group ', k, sep = ''), xlab = 'Time', ylab = 'Number of individuals', xaxs = 'i', yaxs = 'i')
+    plot(NA, xlim = c(0, nrow(SIR$SIR)), ylim = c(0, max_y), main = paste('Group ', k, sep = ''), xlab = 'Time', ylab = 'Number of individuals', xaxs = 'i', yaxs = 'i')
     polygon(c(dfI$t, rev(dfI$t)), c(dfI$L, rev(dfI$U)), col = rgb(1, 0, 0, alpha = 0.1), border = FALSE)
     lines(x = SIR$SIR$time, y = SIR$SIR_sep[, (n_classes + k + 1)], col = 2, lwd = 3)
     lines(x = SIR$SIR$time, y = dfI$M, col = 2, lty = 2, lwd = 3)
@@ -154,8 +153,8 @@ convert_result <- function (area_pop, val, n_row_count, n_col_count) {
   values(r) <- raster::extract(x = area_pop, y = rasterToPoints(r)) /  mult_factor
   m <- matrix(data = values(r), nrow = n_row_count, ncol = n_col_count, byrow = TRUE)
   v <- as.vector(m)
-  v[which(!is.na(values(r)))] <- val
-  m <- matrix(data = v, nrow = n_row_count, ncol = n_col_count)
+  v[which(!is.na(v))] <- val
+  m <- matrix(data = v, nrow = n_row_count, ncol = n_col_count, byrow = )
   values(r) <- m
   r
 }
@@ -182,7 +181,6 @@ SIR_obs_gen <- function (SIR, intensities, area_pop) {
   
   for (k in 1:3) {
     for (t in 1:Terminal) {
-      # print(sum(values(intensities[[k]][[t]]) * prod(res(area_pop))))
       SIR_obs$SIR_sep[t, ((3 + 1) + k)] <- sum(values(intensities[[k]][[t]]) * prod(res(area_pop)))
     }
   }

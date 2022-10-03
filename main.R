@@ -11,27 +11,27 @@ for (s in 1:S) {
   null_model <- scenarios[[s]]$null_model
   AR_include <- scenarios[[s]]$AR_include
   
-  set.seed(0)
+  set.seed(159)
   
   ###################
   # DATA GENERATION #
   ###################
   
-  area_pop <- generate_area() # You can safely ignore error and warning messages from this function.
+  area_pop <- generate_area() 
   map <- live_map(area_pop = area_pop, zoom = 16, maptype = 'roadmap')
   
   N_population <- sum(values(area_pop), na.rm = TRUE)
   
-  SIR <- simulate_SIR(start = start, Terminal = Terminal, delta = delta, N_population = N_population, prop_class = prop_class, C = C, I0 = I0, beta = beta, gamma = gamma, phi = (1 / inv_phi))
-  plot_SIR(SIR = SIR$SIR, s = s, save = F) # PLOT
-  plot_SIR_sep(SIR_sep = SIR$SIR_sep, prop_class = prop_class, s = s, save = F) # PLOT
+  if (s %in% seq( 1, 16)) { SIR <- simulate_SIR(start = start, Terminal = Terminal, delta = delta, N_population = N_population, prop_class = prop_class, C = C, I0 = I0, beta = beta, gamma = gamma, phi = (1 / inv_phi)) }
+  if (s %in% seq(17, 24)) { SIR <- acnb(gamma) }
+  plot_SIR(SIR = SIR$SIR, s = s, save = F) 
+  plot_SIR_sep(SIR_sep = SIR$SIR_sep, prop_class = prop_class, s = s, save = F) 
   
   int_process <- generate_intensity(area_pop = area_pop, SIR_sep = SIR$SIR_sep, prop_class = prop_class, nu = nu, scale = scale, sig_2 = sig_2, mu = mu, sd = sd, sd_AR1 = sd_AR1, a = a, model = model)
   intensities <- list()
   for (i in 1:length(prop_class)) { intensities[[i]] <- int_process[[i]]$intensities }
   
   infect_locations <- simulate_locations(SIR_sep = SIR$SIR_sep, intensities = intensities) 
-  # plot_infect_locations(area_pop = area_pop, Terminal = Terminal, map = map, infect_locations = infect_locations, s = s) # PLOT
   
   saveRDS(object = area_pop, file = paste('output/', sprintf('%02d', s), '/rds/area_pop.rds', sep = ''))
   saveRDS(object = SIR, file = paste('output/', sprintf('%02d', s), '/rds/SIR.rds', sep = ''))
@@ -42,7 +42,7 @@ for (s in 1:S) {
   # TEMPORAL MODELING #
   #####################
   
-  SIR <- SIR_obs_gen(SIR = SIR, intensities = intensities, area_pop = area_pop) # I might comment this
+  SIR <- SIR_obs_gen(SIR = SIR, intensities = intensities, area_pop = area_pop)
   SIR$SIR <- round(SIR$SIR)
   SIR$SIR_sep <- round(SIR$SIR_sep)
   
@@ -81,7 +81,7 @@ for (s in 1:S) {
     values(area_pop_tmp) <- values(area_pop) * prop_class[k]
     Y_hat_tmp <- Y_hat[, , c(k, (n_classes + k), (n_classes * 2 + k))]
     result[[k]] <- fit_spatioTemporal(area_pop = area_pop_tmp, count_cells = count_cells[[k]], Y_hat = Y_hat_tmp, N_restricted = N_restricted, n_row_count = n_row_count, n_col_count = n_col_count, null_model = null_model, AR_include = AR_include)
-    processed_result[[k]] <- process_result(result = result[[k]], area_pop = area_pop_tmp, n_row_count = n_row_count, n_col_count = n_col_count) # Unchanged
+    processed_result[[k]] <- process_result(result = result[[k]], area_pop = area_pop_tmp, n_row_count = n_row_count, n_col_count = n_col_count) 
   }
   
   saveRDS(object = count_cells, file = paste('output/', sprintf('%02d', s), '/rds/count_cells.rds', sep = ''))

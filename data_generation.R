@@ -2,7 +2,7 @@ generate_area <- function (region = 'Brazil', subregion = '3550308', x_center = 
 
   area <- st_transform(x = read_municipality(code_muni = as.numeric(subregion), year = 2020), crs = CRS('EPSG:4326'))
   pop <- raster(x = paste('data/population/', tolower(region), '.tif', sep = ''))
-  # Alternatively, download the 'brazil.tif' object from here: https://drive.google.com/file/d/1nMhIY-DH852qBZDdRnjhhzfT_q3O0fXF/view?usp=sharing
+  # 'brazil.tif': https://drive.google.com/file/d/1nMhIY-DH852qBZDdRnjhhzfT_q3O0fXF/view?usp=sharing
   pop <- crop(x = pop, y = area)
   pop <- rasterize(x = area, y = pop, mask = TRUE)
   
@@ -46,8 +46,6 @@ simulate_SIR <- function (start, Terminal, delta, N_population, prop_class, C, I
     }
     v
   }
-  
-  # if (!validate_contact_matrix(prop_class = prop_class, C = C)) { stop('Provide a valid contact age matrix.') }
   
   times <- seq(from = start, to = Terminal, by = delta)
   N <- length(times)

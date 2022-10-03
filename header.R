@@ -4,7 +4,10 @@ source('data_generation.R')
 source('intensities.R')
 source('SIR_estimation.R')
 source('spatioTemporal_estimation.R')
-source('error_analysis.R')
+source('acnb_generation.R')
+
+library("lubridate")
+library("tidyverse")
 
 source('scenarios.R')
 
