@@ -1,4 +1,3 @@
-# Spatio-temporal Point Process Compartment Modeling for Infectious Diseases paper
+## Spatio-temporal modeling of infectious diseases by integrating compartment and point process models
 
-This repository contains all the files needed to replicate the results of 
-the paper **Spatio-Temporal Modeling of Infectious Diseases by Integrating Compartment and Point Process Models**.
+> **Amaral, AVR**, González, JA, and Moraga, P (2022).  *Spatio-temporal modeling of infectious diseases by integrating compartment and point process models*. Stochastic Environmental Research and Risk Assessment. [https://doi.org/10.1007/s00477-022-02354-4](https://doi.org/10.1007/s00477-022-02354-4).
